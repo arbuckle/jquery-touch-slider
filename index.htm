@@ -1,0 +1,486 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+<style type="text/css">
+	html {
+		height: 100%;
+		min-height:600px;
+	}
+	body {
+		height: 100%;
+		margin:0;
+		text-align:center;
+		background-image: linear-gradient(bottom, #D1D1D1 0%, #545454 92%);
+		background-image: -o-linear-gradient(bottom, #D1D1D1 0%, #545454 92%);
+		background-image: -moz-linear-gradient(bottom, #D1D1D1 0%, #545454 92%);
+		background-image: -webkit-linear-gradient(bottom, #D1D1D1 0%, #545454 92%);
+		background-image: -ms-linear-gradient(bottom, #D1D1D1 0%, #545454 92%);
+		background-image: -webkit-gradient(
+			linear,
+			left bottom,
+			left top,
+			color-stop(0, #D1D1D1),
+			color-stop(0.92, #545454)
+		);
+		background-repeat: no-repeat;
+		background-attachment: fixed;
+	}
+
+
+	.touch-flipper-nav {position:absolute; top:0; width:20%; height:100%; opacity:0.6; display:none; z-index:2; background-position:center center; background-repeat:no-repeat; -webkit-tap-highlight-color: rgba(0,0,0,0); -webkit-user-select: none;}
+	.touch-flipper-next {right:0; background-image:url(right.png);}
+	.touch-flipper-prev {left:0; background-image:url(left.png);}
+
+	#FlipperWrapper, #FlubberFlapper {display:none; margin-top:50px; -webkit-tap-highlight-color: rgba(0,0,0,0); -webkit-user-select: none;}
+
+
+	.touch-flipper-wrapper {position: relative; margin: auto; width: 320px; height:240px; overflow:hidden;}
+	.touch-flipper-content {position:absolute; top:0; left:0; width:100%; height:100%; background-color: black;}
+
+
+	/*state for image wrappers*/
+	.touch-flipper-content div {position:absolute; top:0; left:0; background-color:black;}
+	.isNext {}
+	.isCurrent {z-index:2;}
+	.isPrev {}
+
+
+</style>
+</head>
+<body onload="scrollTo(0,1)" >
+	<div id="FlipperWrapper">
+	</div>
+
+	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+	<script type="text/javascript">
+
+	</script>
+
+	<script type="text/javascript">
+		(function($) {
+			var settings = {
+				/*
+				 * These are the default values for the flipper.
+				 * They are tossed into this.data() when the flipper is initialized.
+				 * To modify these from the default, do it when initializing the flipper, like so:
+				 * $('#MyFlipperWrapper').touchFlipper({'flipDelta': 40, 'controlTimeoutI': 6000, 'imgWidth': 640});
+				 */
+
+				 /*
+				  * Feautures to build out:
+				  * .slide images while touchmove occurs
+				  * .lightbox-style execution (ie, user clicks a thumbnail, gets a gallery)
+				  * 	.pushstate/popstate handling for lightbox, so back button sends user 'back' to the page
+				  */
+
+				  /*
+				   * Optimizations to make:
+				   * remove explicit w/h declarations from CSS.  derive w/h from size of bound container
+				   * setting width/height of container to 100%, what happens and what should happen?
+				   * onorientationchange handling
+				   * re-initialization
+				   * adding/removing images inline
+				  */
+				images			:	[],			// an array of image paths.
+				arraySize		: 	0,			// number of images in flip array
+				arrayOffset		: 	0,			// current displayed image
+				controlFade		:	undefined,	// display controls.  holder for the fade interval
+				controlTimeout	:	5000,		// display controls.  fadeout timeout.
+				controlsVisible	:	false,		// boolean indicator whether the control surface is visible
+				disableSlide	: 	false,		// flow-control. Guarantees only one flip per touch.
+				disableTap		: 	false,		// flow-control. Ensures slides that end on touch controls do not result in doule-flip.
+				endX			: 	0,			// Swipe detection.  Endpoint.
+				flipDelta		: 	23,			// Swipe detection.  The minimum distance between startX and endX to trigger an event.
+				imgWidth		:	320,		// the width of the images in the array.
+				imgHeight		:	240,		// the height of the images in the array.
+				movement		: 	0,			// Swipe detection. Used locally to check against flipDelta.
+				scrollDelta		: 	100,			// Scroll detection.  Signifies the vertical distance the finger must travel in order to trigger scrolling.
+				startX			: 	0,			// Swipe detection.  Startpoint.
+			};
+
+			var methods = {
+				init: function(options) {
+					//console.time('init');
+					//updating settings with user-provided options, and detecting the actual width of the array.
+					this.data(settings);
+					this.data = $.extend(this.data(), options);
+
+					this.data.arraySize = this.data.images.length;
+
+					//create the necessary elements to drive the flipper.
+					this.addClass('touch-flipper-wrapper');
+					this.prepend('<div class="touch-flipper-nav touch-flipper-next"></div>');
+					this.prepend('<div class="touch-flipper-nav touch-flipper-prev"></div>');
+					this.prepend('<div class="touch-flipper-content">' +
+									'<div id="imgP" class="isCurrent" style="-webkit-transform: translateX(0)"></div>' +
+									'<div id="imgC" class="isNext" style="-webkit-transform: translateX(100%)"></div>' +
+									'<div id="imgN" class="isPrev" style="-webkit-transform: translateX(-100%)"></div>' +
+								 '</div>');
+
+					this.find('#imgP').css('width', this.data.imgWidth).css('height', this.data.imgHeight);
+					this.find('#imgC').css('width', this.data.imgWidth).css('height', this.data.imgHeight);
+					this.find('#imgN').css('width', this.data.imgWidth).css('height', this.data.imgHeight);
+
+					setTimeout(function(context) {
+						methods.prepareGallery(context);
+					}, 0, this);
+
+
+					//images.show(); // this adds 3ms to load time on a core i7
+
+					//set bindings for touch detection.
+												this.bind('touchstart.touchFlipper', methods._touchStart);
+												this.bind('touchmove.touchFlipper', methods._touchMove);
+												this.bind('touchend.touchFlipper', methods._touchEnd);
+
+					this.find('.touch-flipper-next').bind('click.touchFlipper', this, function(event){event.stopPropagation();methods.next(event);});
+					this.find('.touch-flipper-prev').bind('click.touchFlipper', this, function(event){event.stopPropagation();methods.prev(event);});
+												this.bind('click.touchFlipper', methods._imageClick);
+
+					//console.timeEnd('init');
+					return 'init';
+				},
+				destroy: function() {
+					//console.time('destroy');
+					this.unbind('.touchFlipper');
+					//console.timeEnd('destroy');
+					return 'destroy';
+				},
+				getSettings: function() {
+					//console.time('getSettings');
+					console.log(this.data());
+					//console.timeEnd('getSettings');
+					return 'getSettings';
+				},
+				_touchStart: function(event) {
+					//console.time('_touchStart');
+
+					data = $(this).data();
+					data.movement = 0;
+					data.startX = event.originalEvent.touches[0].pageX;
+					data.disableSlide = false;
+					data.disableTap = false;
+
+					//for image translation on touchmove
+					$(this).find('.touch-flipper-content > div').css('-webkit-transition-duration', '0');
+
+					//console.timeEnd('_touchStart');
+					return 'touchStart';
+				},
+				_touchMove: function(event) {
+					//console.time('_touchMove');
+					event.preventDefault();
+
+					data = $(this).data();
+					data.endX = event.originalEvent.touches[0].pageX;
+
+					data.movement = data.endX - data.startX;
+
+					//when the user slides their finger across the screen, translations are applied equivalent to the finger motion.
+					$(this).find('.isPrev').css('-webkit-transform', 'translateX(' + (-100 + (data.movement / data.imgWidth * 100)) + '%)');
+					$(this).find('.isCurrent').css('-webkit-transform', 'translateX(' + data.movement / data.imgWidth * 100 + '%)');
+					$(this).find('.isNext').css('-webkit-transform', 'translateX(' + (100 + (data.movement / data.imgWidth * 100)) + '%)');
+
+					//console.timeEnd('_touchMove');
+					return 'touchMove';
+				},
+				_touchEnd: function() {
+					//console.time('_touchEnd');
+
+					data = $(this).data();
+					if (Math.abs(data.movement) > data.flipDelta && !data.disableSlide) {
+						data.disableSlide = true;
+						methods._processFlip(this);
+					}
+					//console.timeEnd('_touchEnd');
+					return 'touchEnd';
+				},
+				_imageClick: function() {
+
+					if (Math.abs(data.movement) <= data.flipDelta && !data.controlsVisible) {
+						console.log('showing')
+						methods.displayControls(this);
+					} else if (Math.abs(data.movement) <= data.flipDelta && data.controlsVisible) {
+						console.log('hiding')
+						methods.hideControls(this);
+					}
+					return false;
+				},
+				hideControls: function(context) {
+					if (typeof context.data === 'object') {
+						context = context.data;
+					}
+					var data = $(context).data();
+					data.controlsVisible = false;
+					$(context).find('.touch-flipper-nav').fadeOut(400);
+				},
+				displayControls: function(context, active) {
+					//console.time('displayControls');
+
+					if (typeof context.data === 'object') {
+						context = context.data;
+					}
+					var data = $(context).data();
+
+					if (active) {
+						data.controlsVisible = true;
+						$(context).find('.touch-flipper-nav').stop().show();
+					} else {
+						data.controlsVisible = true;
+						$(context).find('.touch-flipper-nav').fadeIn(400);
+					}
+					//console.timeEnd('displayControls');
+					return 'displayControls';
+				},
+				timeoutHandler: function() {
+
+				},
+				_processFlip: function(context) {
+					//console.time('_processFlip');
+					var data = $(context).data();
+
+					data.movement = data.endX - data.startX;
+
+					if (data.movement > 0 && data.arrayOffset == 0) {
+						//beginning of loop
+						methods.prev(context, true);
+					} else if (data.movement < 0 && data.arrayOffset < data.arraySize) {
+						//move next
+						methods.next(context);
+					} else if  (data.movement > 0) {
+						//move back
+						methods.prev(context);
+					} else {
+						//end of loop
+						methods.next(context, true);
+					}
+
+					//console.timeEnd('_processFlip');
+					return '_processFlip';
+				},
+				next: function(context, edge) {
+					//console.time('next');
+
+					if (typeof this === 'object' && this.length) {
+						//set context to 'this' when the method is called from the page, like
+						//$('#FlipperWrapper').touchFlipper('next');
+						context = this;
+					} else if (typeof context.data === 'object') {
+						context = context.data;
+					}
+
+					var data = $(context).data();
+					if (data.disableTap) {
+						return 'next-Blocked'
+					}
+
+					if (edge || data.arrayOffset == data.arraySize) {
+						methods.animate(context, 'end');
+					} else {
+						//data.arrayOffsetPx -= data.imgWidth;
+						data.arrayOffset++;
+						methods.animate(context);
+					}
+					data.disableTap = true;
+
+					//console.timeEnd('next');
+					return 'next';
+				},
+				prev: function(context, edge) {
+					//console.time('prev');
+
+					if (typeof this === 'object' && this.length) {
+						//set context to 'this' when the method is called from the page, like
+						//$('#FlipperWrapper').touchFlipper('prev');
+						context = this;
+					} else if (typeof context.data === 'object') {
+						context = context.data;
+					}
+
+					var data = $(context).data();
+
+					if (data.disableTap) {
+						return 'prev-Blocked'
+					}
+
+					if (edge || data.arrayOffset == 0) {
+						methods.animate(context, 'start');
+					} else if (data.arrayOffset <= data.arraySize) {
+						//data.arrayOffsetPx += data.imgWidth;
+						data.arrayOffset--;
+						methods.animate(context);
+					}
+
+					data.disableTap = true;
+
+					//console.timeEnd('prev');
+					return 'prev';
+				},
+				animate: function(context, edge) {
+					console.time('animate');
+					$(context).find('.touch-flipper-content > div').css('-webkit-transition-duration', '0.5s');
+					var data = $(context).data();
+
+					//animations for the beginning and end of the loop
+					//this was broken when i added support for translating the images on touchmove
+					if (edge && edge == 'end') {
+						//$(context).find('.touch-flipper-content').find('.isCurrent').css('-webkit-transform', 'translate3d(-20%, 0, 0)');
+						//setTimeout(function(context){$(context).find('.touch-flipper-content').find('.isCurrent').attr('style', '');}, 200, context);
+						console.log('eol');
+					} else if (edge && edge == 'start') {
+						//$(context).find('.touch-flipper-content').find('.isCurrent').css('-webkit-transform', 'translate3d(20%, 0, 0)');
+						//setTimeout(function(context){$(context).find('.touch-flipper-content').find('.isCurrent').attr('style', '');}, 200, context);
+						console.log('bol');
+					}
+
+					//animation is achieved by shuffling three containers arround using CSS transforms.  nothing clever here.
+					var mod = data.arrayOffset % 3;
+					var wrappers = $(context).find('.touch-flipper-content')[0].getElementsByTagName('div');
+
+					if (mod == 0) {
+						wrappers[0].setAttribute('class', 'isCurrent')
+						wrappers[0].style.webkitTransform = 'translateX(0)';
+						wrappers[1].setAttribute('class', 'isNext')
+						wrappers[1].style.webkitTransform = 'translateX(100%)';
+						wrappers[2].setAttribute('class', 'isPrev')
+						//wrappers[2].style.webkitTransitionDuration = '0'; // necessary to prevent flickering when image transitions to starting location
+						wrappers[2].style.webkitTransform = 'translateX(-100%)';
+					} else if (mod == 1) {
+						wrappers[0].setAttribute('class', 'isPrev')
+						//wrappers[0].style.webkitTransitionDuration = '0';
+						wrappers[0].style.webkitTransform = 'translateX(-100%)';
+						wrappers[1].setAttribute('class', 'isCurrent')
+						wrappers[1].style.webkitTransform = 'translateX(0)';
+						wrappers[2].setAttribute('class', 'isNext')
+						wrappers[2].style.webkitTransform = 'translateX(100%)';
+					} else if (mod == 2) {
+						wrappers[0].setAttribute('class', 'isNext')
+						wrappers[0].style.webkitTransform = 'translateX(100%)';
+						wrappers[1].setAttribute('class', 'isPrev')
+						//wrappers[1].style.webkitTransitionDuration = '0';
+						wrappers[1].style.webkitTransform = 'translateX(-100%)';
+						wrappers[2].setAttribute('class', 'isCurrent')
+						wrappers[2].style.webkitTransform = 'translateX(0)';
+					}
+
+					console.timeEnd('animate');
+					return 'animate';
+				},
+				prepareGallery: function(context){
+					/*
+					 *	Problem:
+					 *	This doesn't work the way it ought to, because when the browser hasn't yet loaded the images it cannot specify the appropriate
+					 *	width and height for the scaled image, and cannot determine the appropriate vertical margins, either.
+					 *
+					 *	New functionality:
+					 *	1.  All the img tags must be removed from the DOM and their paths placed into an array.
+					 *	2.  Prev/Current/Next image wrappers must be inserted into the DOM in place of the img tags
+					 *	3.  Current, Next, Prev images must be loaded.  When load completes,
+					 *		image size and margins must then be evaluated and the images inserted into the DOM
+					 *
+					*/
+
+
+					//console.time('resize');
+					var data = $(context).data();
+
+					img0 = new Image();
+					img1 = new Image();
+					img2 = new Image();
+
+					img0.onload = function(){$('#imgP').html(img0); methods.scaleImage(context, img0);} //$('#imgP').html(img0); //scale down and set parent margins
+					img1.onload = function(){$('#imgC').html(img1); methods.scaleImage(context, img1);}
+					img2.onload = function(){$('#imgN').html(img2); methods.scaleImage(context, img2);}
+
+					img0.src = data.images[0];
+					img1.src = data.images[1];
+					img2.src = data.images[2];
+					//console.timeEnd('resize');
+				},
+				scaleImage: function(context, image) {
+					/*
+					 * If the image is too wide or tall for the specified container, it must be scaled down
+					 * 1.  Calculate a scaling multiplier (sM) by dividing the container width by the image width or height.
+					 * 2.  Scale the image down or up by multiplying the image dimensions by the sM.
+					 * 3.  Determine the difference in size between the container and the image.
+					 * 4.  Apply a margin of 1/2 the difference in size.
+					*/
+
+					console.log(image)
+					var data = $(context).data();
+					var c = {'x': data.imgWidth, 'y':data.imgHeight}; //container dimensions
+					var cAs = c.x / c.y; //container aspect ratio
+					var y = image.height,
+						x = image.width,
+						sM, //scaling multiplier
+						sX, //scaled X
+						sY, //scaled Y
+						dS; //difference in size (used to calculate img margins)
+
+					console.log(image.clientWidth)
+
+					if (x > y) {
+						//the image is wide
+						sM = c.x / x;
+						x = x*sM;
+						y = y*sM;
+						dS = (c.y - y);
+						image.style.marginTop = dS / 2 + 'px';
+					} else {
+						//the image is tall, or square
+						sM = c.y / y;
+						x = x*sM;
+						y = y*sM;
+						dS = (c.x - x);
+						image.style.marginLeft = dS / 2 + 'px';
+					}
+					image.width = x;
+					image.height = y;
+				}
+			};
+
+
+			$.fn.touchFlipper = function(method) {
+				this.fadeIn(400);
+
+				if (methods[method]) {
+					return methods[method].apply(this, Array.prototype.slice.call(arguments, 1));
+				} else if (typeof method === 'object' || !method) {
+					return methods.init.apply(this, arguments);
+				} else {
+					$.error('Method ' + method + ' does not exist on jQuery.touchFlipper');
+				}
+			};
+
+
+	})(jQuery);
+
+	$('#FlipperWrapper').touchFlipper({
+		'images': [	'0.jpg',
+					'1.jpg',
+					'2.jpg',
+					'3.jpg',
+					'4.jpg',
+					'5.jpg',
+					'6.jpg',
+					'7.jpg',
+					'8.jpg',
+					'9.jpg',
+					'10.jpg',
+					'11.jpg',
+					'12.jpg',
+					'13.jpg',
+					'14.jpg',
+					'15.jpg',
+					'16.jpg',
+					'17.jpg',
+					'18.jpg',
+					'19.jpg']
+	});
+
+
+	</script>
+</body>
+</html>
