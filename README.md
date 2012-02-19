@@ -22,14 +22,14 @@ This may change.  The plugin is in development.
 Objectives
 ----------
 * Duplicate the look and feel of the native Android image gallery.
-* Center images in the viewport while preserving their aspect ratio.
-* Leverage GPU-accelerated CSS translations to animate gallery.
-* Touch events allow user to swipe left and right to view images.
-* Tap once to expose Next/Prev controls and menu options.  Tap again to remove them.
+* Center images in the viewport while preserving their aspect ratio. |SUPPORTED|
+* Leverage GPU-accelerated CSS translations to animate gallery. |SUPPORTED|
+* Touch events allow user to swipe left and right to view images. |SUPPORTED|
+* Tap once to expose Next/Prev controls and menu options.  Tap again to remove them. |SUPPORTED|
 * Easily customizable menu options.
 * Full-viewport mode - the gallery takes up the entire viewport, with enough height to suppress the address bar.
-* Integrated mode - the gallery can be integrated as an inline element of the page.
+* Integrated mode - the gallery can be integrated as an inline element of the page. |SUPPORTED|
 * Displays a working page immediately when requested.  Images and data are filled in as the connection allows.
-* Work cross-browser:  Android browser, HTC Sense browser, Mobile Safari, Mobile Firefox, Mobile Opera, IE9
-* Handle funky edge cases such as 1-2 images per gallery
+* Work cross-browser:  Android browser, HTC Sense browser, Mobile Safari, Mobile Firefox, Mobile Opera, IE9.
+* Handle funky edge cases such as 1-2 images per gallery.
 * Handle irresponsible developers who wish to include 100s or 1000s of images in a single gallery.
