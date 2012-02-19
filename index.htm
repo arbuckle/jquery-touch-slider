@@ -155,13 +155,9 @@
 					//console.time('_touchStart');
 
 					data = $(this).data();
-					data.movement = 0;
 					data.startX = event.originalEvent.touches[0].pageX;
 					data.disableSlide = false;
 					data.disableTap = false;
-
-					//for image translation on touchmove
-					$(this).find('.touch-flipper-content > div').css('-webkit-transition-duration', '0');
 
 					//console.timeEnd('_touchStart');
 					return 'touchStart';
@@ -174,6 +170,11 @@
 					data.endX = event.originalEvent.touches[0].pageX;
 
 					data.movement = data.endX - data.startX;
+
+					//once the user has moved their finger enough to suggest a slide, changing the animation duration
+					if (Math.abs(data.movement) > data.flipDelta && !data.disableSlide) {
+						$(this).find('.touch-flipper-content > div').css('-webkit-transition-duration', '0.1s'); //setting to 0 has side-affects
+					}
 
 					//when the user slides their finger across the screen, translations are applied equivalent to the finger motion.
 					$(this).find('.isPrev').css('-webkit-transform', 'translateX(' + (-100 + (data.movement / data.imgWidth * 100)) + '%)');
@@ -191,6 +192,9 @@
 						data.disableSlide = true;
 						methods._processFlip(this);
 					}
+
+					data.movement = 0;
+
 					//console.timeEnd('_touchEnd');
 					return 'touchEnd';
 				},
