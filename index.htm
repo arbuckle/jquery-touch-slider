@@ -260,11 +260,8 @@
 				next: function(context, edge) {
 					//console.time('next');
 
-					if (typeof this === 'object' && this.length) {
-						//set context to 'this' when the method is called from the page, like
-						//$('#FlipperWrapper').touchFlipper('next');
-						context = this;
-					} else if (typeof context.data === 'object') {
+					if (typeof context.data === 'object') {
+						//distinguish between context-from-event and context-from-internal-method-call
 						context = context.data;
 					}
 
@@ -288,11 +285,8 @@
 				prev: function(context, edge) {
 					//console.time('prev');
 
-					if (typeof this === 'object' && this.length) {
-						//set context to 'this' when the method is called from the page, like
-						//$('#FlipperWrapper').touchFlipper('prev');
-						context = this;
-					} else if (typeof context.data === 'object') {
+					if (typeof context.data === 'object') {
+						//distinguish between context-from-event and context-from-internal-method-call
 						context = context.data;
 					}
 
